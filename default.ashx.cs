@@ -28,13 +28,9 @@ namespace ToText
         protected bool VerifyApiKey(HttpContext context)
         {
             string apikey = context.Request["key"];
-            if (string.IsNullOrEmpty(apikey))
-            {
-                context.Response.StatusCode = (int)HttpStatusCode.Forbidden;
-                context.Response.StatusDescription = "Forbidden";
-                return false;
-            }
+            if (string.IsNullOrEmpty(apikey)) return AccessDenied(context);
 
+			//TODO: Add Api Key Verification Code
             return true;
         }
 
@@ -42,39 +38,34 @@ namespace ToText
         public void ProcessRequest(HttpContext context)
         {
             Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
-            string HttpMethod = context.Request.HttpMethod.ToUpperInvariant();
+            string httpMethod = context.Request.HttpMethod.ToUpperInvariant();
 
             if (methods.Count == 0)
             {
                 methods.Add(WebRequestMethods.Http.Get, Process_GET);
-                methods.Add(WebRequestMethods.Http.Post, DummyProcess);
-                methods.Add("DELETE", Process_DELETE);
-
-                methods.Add(WebRequestMethods.Http.Connect, DummyProcess);
-                methods.Add(WebRequestMethods.Http.Head, DummyProcess);
-                methods.Add(WebRequestMethods.Http.Put, DummyProcess);
             }
 
-            if (methods.ContainsKey(HttpMethod))
-                methods[HttpMethod].Invoke(context);
+            if (methods.ContainsKey(httpMethod))
+                methods[httpMethod].Invoke(context);
             else
                 DummyProcess(context);
         }
 
         protected void DummyProcess(HttpContext context)
         {
+            if (!VerifyApiKey(context)) return;
+
             context.Response.ContentType = "application/json";
             context.Response.StatusCode = (int)HttpStatusCode.NotAcceptable; //406;
             context.Response.StatusDescription = "Not Acceptable";
         }
-
-        protected void Process_DELETE(HttpContext context)
-        {
-            if (!VerifyApiKey(context))
-                return;
-
-            DummyProcess(context);
-        }
+		
+		protected bool AccessDenied(HttpContext context)
+		{
+			context.Response.StatusCode = (int)HttpStatusCode.Forbidden;
+			context.Response.StatusDescription = "Forbidden";
+			return false;
+		}
 
         protected void Process_GET(HttpContext context)
         {
@@ -181,24 +172,22 @@ namespace ToText
                     .Replace(" ¢",  string.Empty)
                     .ToString();
             }
-
+			
+			context.Response.AddHeader("Access-Control-Allow-Origin", "http://www.vasiliadis.eu");
             if ((format == "json") || string.IsNullOrEmpty(format))
             {
                 context.Response.ContentType = "application/json";
-                //context.Response.AddHeader("Access-Control-Allow-Origin", "http://www.vasiliadis.eu");
                 string json = string.Format("{{\"text\":\"{0}\"}}", retvalue);
                 context.Response.Write(json);
             }
             else if (format == "text")
             {
                 context.Response.ContentType = "text/plain";
-                //context.Response.AddHeader("Access-Control-Allow-Origin", "http://www.vasiliadis.eu");
                 context.Response.Write(retvalue);
             }
             else if (format == "xml")
             {
                 context.Response.ContentType = "application/xml";
-                //context.Response.AddHeader("Access-Control-Allow-Origin", "http://www.vasiliadis.eu");
                 string xml = string.Format("<?xml version=\"1.0\" encoding=\"UTF-8\"?><result><text>{0}</text></result>", retvalue);
                 context.Response.Write(xml);
             }
